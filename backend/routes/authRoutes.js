@@ -1,200 +1,304 @@
-import express from "express";
-import bcrypt from "bcrypt";
-import User from "../models/User.js";
-
-const router = express.Router();
+const API_URL = "http://localhost:5000/api/auth";
+const ADMIN_API_URL = "http://localhost:5000/api/admin";
 
 // ========================
-// SIGNUP ROUTE
+// SIGNUP
 // ========================
-router.post("/signup", async (req, res) => {
+export const signup = async (email, password, name) => {
   try {
-    const { email, password, name } = req.body;
-
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Email and password are required" 
-      });
-    }
-
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ 
-        success: false,
-        message: "User already exists" 
-      });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Save user
-    const newUser = new User({ 
-      email, 
-      password: hashedPassword,
-      name: name || email.split("@")[0]
-    });
-    await newUser.save();
-
-    res.status(201).json({ 
-      success: true,
-      message: "Signup successful!",
-      user: {
-        id: newUser._id,
-        email: newUser.email,
-        name: newUser.name,
-      }
-    });
-  } catch (error) {
-    console.error("Signup error:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Server error" 
-    });
-  }
-});
-
-// ========================
-// LOGIN ROUTE
-// ========================
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Email and password are required" 
-      });
-    }
-
-    // Find user
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ 
-        success: false,
-        message: "Invalid email or password" 
-      });
-    }
-
-    // Check if account is active
-    if (user.isActive === false) {
-      return res.status(403).json({ 
-        success: false,
-        message: "Account is deactivated. Please contact support." 
-      });
-    }
-
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ 
-        success: false,
-        message: "Invalid email or password" 
-      });
-    }
-
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
-
-    // Send response (don't send password back)
-    res.status(200).json({
-      success: true,
-      message: "Login successful!",
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        profilePicture: user.profilePicture,
+    const response = await fetch(`${API_URL}/signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-      token: "fake-jwt-token", // Replace with real JWT later
+      body: JSON.stringify({ email, password, name }),
     });
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Server error during login" 
-    });
-  }
-});
 
-// ========================
-// GET USER PROFILE
-// ========================
-router.get("/profile/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
+    const data = await response.json();
 
-    const user = await User.findById(userId).select("-password");
-    
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: "User not found" 
-      });
+    if (!response.ok) {
+      throw new Error(data.message || "Signup failed");
     }
 
-    res.status(200).json({
-      success: true,
-      user,
-    });
+    return data;
   } catch (error) {
-    console.error("Get profile error:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Server error" 
-    });
+    throw error;
   }
-});
+};
+
+// ========================
+// LOGIN
+// ========================
+export const login = async (email, password) => {
+  try {
+    const response = await fetch(`${API_URL}/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Login failed");
+    }
+
+    // Store user data and token in localStorage
+    if (data.success && data.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("userData", JSON.stringify(data.user));
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("isAdmin", "false");
+      
+      // Dispatch custom event to update Navigation
+      window.dispatchEvent(new Event('authChange'));
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// ========================
+// ADMIN LOGIN
+// ========================
+export const adminLogin = async (email, password) => {
+  try {
+    const response = await fetch(`${ADMIN_API_URL}/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Admin login failed");
+    }
+
+    // Store admin data and token
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("adminToken", data.token);
+      localStorage.setItem("isAdmin", "true");
+      
+      if (data.admin) {
+        localStorage.setItem("user", JSON.stringify(data.admin));
+        localStorage.setItem("admin", JSON.stringify(data.admin));
+        localStorage.setItem("adminData", JSON.stringify(data.admin));
+        localStorage.setItem("userData", JSON.stringify(data.admin));
+      }
+      
+      console.log('✅ Admin token stored:', data.token);
+      
+      // Dispatch custom event to update Navigation
+      window.dispatchEvent(new Event('authChange'));
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// ========================
+// LOGOUT
+// ========================
+export const logout = () => {
+  localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  localStorage.removeItem("adminToken");
+  localStorage.removeItem("isAdmin");
+  localStorage.removeItem("admin");
+  localStorage.removeItem("adminData");
+  localStorage.removeItem("userData");
+  
+  // Dispatch custom event to update Navigation
+  window.dispatchEvent(new Event('authChange'));
+};
+
+// ========================
+// GET CURRENT USER
+// ========================
+export const getCurrentUser = () => {
+  const adminData = localStorage.getItem("adminData");
+  const userData = localStorage.getItem("userData");
+  const user = localStorage.getItem("user");
+  const admin = localStorage.getItem("admin");
+  
+  // Priority: adminData > userData > admin > user
+  if (adminData) {
+    return JSON.parse(adminData);
+  }
+  if (userData) {
+    return JSON.parse(userData);
+  }
+  if (admin) {
+    return JSON.parse(admin);
+  }
+  return user ? JSON.parse(user) : null;
+};
+
+// ========================
+// CHECK IF LOGGED IN
+// ========================
+export const isAuthenticated = () => {
+  const token = localStorage.getItem("token") || localStorage.getItem("adminToken");
+  
+  // Check if token exists and is not null/undefined string
+  if (!token || token === 'null' || token === 'undefined' || token.trim() === '') {
+    return false;
+  }
+  
+  return true;
+};
+
+// ========================
+// CHECK IF ADMIN
+// ========================
+export const isAdmin = () => {
+  return localStorage.getItem("isAdmin") === "true";
+};
+
+// ========================
+// GET USER PROFILE (from backend)
+// ========================
+export const getProfile = async () => {
+  try {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await fetch(`${API_URL}/settings/profile`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to fetch profile");
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
 
 // ========================
 // UPDATE USER PROFILE
 // ========================
-router.put("/profile/:userId", async (req, res) => {
+export const updateUserProfile = async (profileData) => {
   try {
-    const { userId } = req.params;
-    const { name, profilePicture } = req.body;
-
-    const user = await User.findById(userId);
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
     
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: "User not found" 
-      });
+    if (!token) {
+      throw new Error('No authentication token found');
     }
 
-    // Update fields
-    if (name) user.name = name;
-    if (profilePicture) user.profilePicture = profilePicture;
+    const response = await fetch(`${API_URL}/settings/profile`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(profileData),
+    });
 
-    await user.save();
+    const data = await response.json();
 
-    res.status(200).json({
-      success: true,
-      message: "Profile updated successfully",
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        profilePicture: user.profilePicture,
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to update profile");
+    }
+
+    // Update stored user data
+    if (data.success && data.user) {
+      const isAdmin = localStorage.getItem('isAdmin') === 'true';
+      
+      if (isAdmin) {
+        localStorage.setItem("admin", JSON.stringify(data.user));
+        localStorage.setItem("adminData", JSON.stringify(data.user));
+      }
+      
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("userData", JSON.stringify(data.user));
+      
+      // Dispatch custom event to update Navigation
+      window.dispatchEvent(new Event('authChange'));
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// ========================
+// CHANGE PASSWORD
+// ========================
+export const changePassword = async (currentPassword, newPassword) => {
+  try {
+    const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await fetch(`${API_URL}/settings/change-password`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ 
+        currentPassword, 
+        newPassword 
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to change password");
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// ========================
+// GET USER PROFILE (OLD - for compatibility)
+// ========================
+export const getUserProfile = async (userId) => {
+  try {
+    const response = await fetch(`${API_URL}/profile/${userId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
       },
     });
-  } catch (error) {
-    console.error("Update profile error:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Server error" 
-    });
-  }
-});
 
-// ========================
-// EXPORT ROUTER (THIS IS CRITICAL!)
-// ========================
-export default router;
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to fetch profile");
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};

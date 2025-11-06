@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Apple, Home, Package, Info, LogIn, PlusCircle, LayoutDashboard, User } from 'lucide-react';
+import { Apple, Home, Package, Info, LogIn, LayoutDashboard, User, Settings } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getCurrentUser, isAuthenticated, logout } from '../services/authService';
+import '../styles/Navigation.css';
 
 const Navigation = () => {
   const [activeTab, setActiveTab] = useState('home');
@@ -13,15 +14,36 @@ const Navigation = () => {
 
   // Function to update authentication state
   const updateAuthState = () => {
-    const currentUser = getCurrentUser();
+    let currentUser = getCurrentUser();
     const loggedIn = isAuthenticated();
     const adminStatus = localStorage.getItem('isAdmin') === 'true';
     const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
     
+    console.log('🔍 Auth State Check:', {
+      loggedIn,
+      isAdmin: adminStatus,
+      hasToken: !!token,
+      user: currentUser
+    });
+    
+    // If getCurrentUser didn't return user data, try getting from localStorage directly
+    if (!currentUser || !currentUser.name) {
+      try {
+        const adminData = localStorage.getItem('adminData');
+        const userData = localStorage.getItem('userData');
+        
+        if (adminData) {
+          currentUser = JSON.parse(adminData);
+        } else if (userData) {
+          currentUser = JSON.parse(userData);
+        }
+      } catch (err) {
+        console.error('Error parsing user data from localStorage:', err);
+      }
+    }
+    
     // Basic validation - check if token exists and looks valid
     if (loggedIn && (!token || token === 'null' || token === 'undefined')) {
-      // Token is invalid, clear everything
-      console.log('Invalid token detected, clearing auth state');
       logout();
       setUser(null);
       setIsLoggedIn(false);
@@ -61,10 +83,10 @@ const Navigation = () => {
     const path = location.pathname;
     if (path === '/') setActiveTab('home');
     else if (path === '/library') setActiveTab('library');
-    else if (path === '/blogs') setActiveTab('blogs');
     else if (path === '/about') setActiveTab('about');
     else if (path === '/dashboard') setActiveTab('dashboard');
     else if (path === '/user-dashboard') setActiveTab('dashboard');
+    else if (path === '/settings') setActiveTab('settings');
   }, [location.pathname]);
 
   // Build tabs array dynamically
@@ -72,7 +94,6 @@ const Navigation = () => {
     const baseTabs = [
       { id: 'home', label: 'Home', icon: Home, route: '/' },
       { id: 'library', label: 'Library', icon: Package, route: '/library' },
-      { id: 'blogs', label: 'Blogs', icon: PlusCircle, route: '/blogs' },
       { id: 'about', label: 'About', icon: Info, route: '/about' },
     ];
 
@@ -99,6 +120,11 @@ const Navigation = () => {
     navigate('/signup-login');
   };
 
+  const handleSettingsClick = () => {
+    console.log('⚙️ Settings button clicked');
+    navigate('/settings');
+  };
+
   const handleLogout = () => {
     logout();
     setUser(null);
@@ -111,6 +137,8 @@ const Navigation = () => {
     
     navigate('/');
   };
+
+  console.log('🎨 Rendering Navigation - isLoggedIn:', isLoggedIn, 'isAdmin:', isAdminUser);
 
   return (
     <nav className="navigation">
@@ -142,7 +170,17 @@ const Navigation = () => {
         <div className="nav-actions">
           {isLoggedIn ? (
             <div className="user-menu">
-              
+              {/* Settings Button */}
+              <button
+                className="settings-btn"
+                onClick={handleSettingsClick}
+                title="Settings"
+              >
+                <Settings size={18} />
+                <span>Settings</span>
+              </button>
+
+              {/* Logout Button */}
               <button
                 className="logout-btn"
                 onClick={handleLogout}

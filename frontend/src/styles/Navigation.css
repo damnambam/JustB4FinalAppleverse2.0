@@ -1,0 +1,82 @@
+/* Add these styles to your Navigation CSS file */
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* settings-btn === */
+.settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: rgb(126, 121, 121);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  
+}
+
+.settings-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Matched gap to settings button */
+  padding: 10px 20px; /* Matched padding to settings button */
+  background-color: #dc2626; /* Using hex for solid color */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600; /* Matched font-weight */
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.logout-btn:hover {
+  background-color: #b91c1c; /* A slightly darker red */
+  transform: translateY(-1px);
+}
+
+.admin-login-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: #22c55e; /* Using hex for solid color */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.admin-login-btn:hover {
+  background-color: #16a34a; /* A slightly darker green */
+  transform: translateY(-1px);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .settings-btn,
+  .logout-btn,
+  .admin-login-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    gap: 6px;
+  }
+}
+.nav-actions {
+  margin-left: auto;
+}

@@ -34,7 +34,7 @@ const UserDashboard = () => {
         <div className="dashboard-header">
           <div>
             <h1 className="dashboard-title">
-              Hello, {user.name || user.email}! 👋
+              Hello, {user.name || user.email}!
             </h1>
             <p className="dashboard-subtitle">
               Explore apple varieties, manage your profile, and download your favorites.
@@ -50,7 +50,7 @@ const UserDashboard = () => {
           <h2 className="section-title">Quick Actions</h2>
           <div className="actions-grid">
             <Link to="/" className="action-card">
-              <div className="action-icon">🍎</div>
+              <div className="action-icon"></div>
               <h3>Browse Apples</h3>
               <p>Explore 900+ apple varieties with detailed information</p>
             </Link>
@@ -59,13 +59,13 @@ const UserDashboard = () => {
             
 
             <Link to="/about" className="action-card">
-              <div className="action-icon">🌳</div>
+              <div className="action-icon"></div>
               <h3>About</h3>
               <p>Learn more about Appleverse</p>
             </Link>
 
             <div className="action-card" onClick={() => navigate('/profile')}>
-              <div className="action-icon">👤</div>
+              <div className="action-icon"></div>
               <h3>My Profile</h3>
               <p>View and edit your profile information</p>
             </div>
@@ -78,7 +78,7 @@ const UserDashboard = () => {
           <h2 className="section-title">Recent Activity</h2>
           <div className="activity-list">
             <div className="activity-item">
-              <div className="activity-icon">👁️</div>
+              <div className="activity-icon">📜</div>
               <div className="activity-content">
                 <p className="activity-title">Latest View</p>
                 <p className="activity-description">No recent views yet</p>
@@ -86,7 +86,7 @@ const UserDashboard = () => {
             </div>
 
             <div className="activity-item">
-              <div className="activity-icon">⬇️</div>
+              <div className="activity-icon">📥</div>
               <div className="activity-content">
                 <p className="activity-title">Latest Download</p>
                 <p className="activity-description">No downloads yet</p>
@@ -94,7 +94,7 @@ const UserDashboard = () => {
             </div>
 
             <div className="activity-item">
-              <div className="activity-icon">🔍</div>
+              <div className="activity-icon">🔎</div>
               <div className="activity-content">
                 <p className="activity-title">Recent Search</p>
                 <p className="activity-description">No searches yet</p>

@@ -16,15 +16,18 @@ export default function CreateApple() {
   const [matchedData, setMatchedData] = useState([]);
   const [unmatchedImages, setUnmatchedImages] = useState([]);
   const [unmatchedApples, setUnmatchedApples] = useState([]);
+  const [duplicateApples, setDuplicateApples] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [manualMatches, setManualMatches] = useState({});
+  const [duplicateResolutions, setDuplicateResolutions] = useState({});
 
   // Statistics
   const [stats, setStats] = useState({
     matched: 0,
     unmatchedImages: 0,
-    unmatchedApples: 0
+    unmatchedApples: 0,
+    duplicates: 0
   });
 
   // Back to start
@@ -37,9 +40,11 @@ export default function CreateApple() {
     setMatchedData([]);
     setUnmatchedImages([]);
     setUnmatchedApples([]);
+    setDuplicateApples([]);
     setError('');
     setManualMatches({});
-    setStats({ matched: 0, unmatchedImages: 0, unmatchedApples: 0 });
+    setDuplicateResolutions({});
+    setStats({ matched: 0, unmatchedImages: 0, unmatchedApples: 0, duplicates: 0 });
   };
 
   // STEP 1: Handle CSV Upload
@@ -71,8 +76,9 @@ export default function CreateApple() {
       const text = await csvFile.text();
       const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
 
+      // Check if file is empty
       if (!parsed.data || parsed.data.length === 0) {
-        setError('The file is empty or has no valid data. Please upload a file with content.');
+        setError('❌ The file is empty. Please upload a file that contains apple data.');
         setLoading(false);
         return;
       }
@@ -86,6 +92,36 @@ export default function CreateApple() {
 
       if (!hasCultivarName) {
         setError('CSV must contain a cultivar name column (e.g., "cultivar_name", "name")');
+        setLoading(false);
+        return;
+      }
+
+      // Check for duplicate entries in CSV
+      const cultivarField = Object.keys(firstRow).find(key => 
+        key.toLowerCase().includes('cultivar') || 
+        key.toLowerCase().includes('name')
+      );
+      
+      const accessionField = Object.keys(firstRow).find(key => 
+        key.toLowerCase().includes('accession')
+      );
+
+      const seen = new Set();
+      const duplicates = [];
+      
+      parsed.data.forEach((row, index) => {
+        const identifier = accessionField ? 
+          `${row[accessionField]}_${row[cultivarField]}` : 
+          row[cultivarField];
+        
+        if (seen.has(identifier)) {
+          duplicates.push({ row: index + 2, name: row[cultivarField] }); // +2 for header and 0-index
+        }
+        seen.add(identifier);
+      });
+
+      if (duplicates.length > 0) {
+        setError(`❌ Duplicate entries found in CSV: ${duplicates.map(d => `${d.name} (row ${d.row})`).join(', ')}. Please remove duplicates and try again.`);
         setLoading(false);
         return;
       }
@@ -171,34 +207,54 @@ export default function CreateApple() {
     const unmatchedImgs = [];
     const unmatchedApps = [];
 
-    // Get cultivar name field
-    const cultivarField = Object.keys(csvData[0]).find(key => 
+    // Get cultivar name field and accession field
+    const firstRow = csvData[0];
+    const cultivarField = Object.keys(firstRow).find(key => 
       key.toLowerCase().includes('cultivar') || 
       key.toLowerCase().includes('name')
+    );
+    
+    const accessionField = Object.keys(firstRow).find(key => 
+      key.toLowerCase().includes('accession')
     );
 
     csvData.forEach(apple => {
       const cultivarName = apple[cultivarField];
+      const accessionNumber = accessionField ? apple[accessionField] : '';
+      
       if (!cultivarName) return;
 
-      // Try to find matching image (case-insensitive, fuzzy matching)
-      const cleanCultivar = cultivarName.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      // Create expected image name pattern: accessionNumber_cultivarName
+      const expectedPattern = accessionNumber ? 
+        `${accessionNumber}_${cultivarName}`.toLowerCase().replace(/[^a-z0-9_]/g, '') :
+        cultivarName.toLowerCase().replace(/[^a-z0-9]/g, '');
       
-      const matchedImage = images.find(img => {
-        const cleanImgName = img.name.toLowerCase().replace(/\.(jpg|jpeg|png|gif|bmp)$/i, '').replace(/[^a-z0-9]/g, '');
-        return cleanImgName.includes(cleanCultivar) || cleanCultivar.includes(cleanImgName);
+      // Find all matching images (could be multiple)
+      const matchedImages = images.filter(img => {
+        const cleanImgName = img.name.toLowerCase()
+          .replace(/\.(jpg|jpeg|png|gif|bmp)$/i, '')
+          .replace(/[^a-z0-9_]/g, '');
+        
+        return cleanImgName.includes(expectedPattern) || 
+               expectedPattern.includes(cleanImgName) ||
+               cleanImgName.startsWith(expectedPattern);
       });
 
-      if (matchedImage) {
-        matched.push({
-          apple: apple,
-          image: matchedImage,
-          cultivarName: cultivarName
+      if (matchedImages.length > 0) {
+        // Add all matched images for this apple
+        matchedImages.forEach(img => {
+          matched.push({
+            apple: apple,
+            image: img,
+            cultivarName: cultivarName,
+            accessionNumber: accessionNumber
+          });
         });
       } else {
         unmatchedApps.push({
           apple: apple,
-          cultivarName: cultivarName
+          cultivarName: cultivarName,
+          accessionNumber: accessionNumber
         });
       }
     });
@@ -214,7 +270,8 @@ export default function CreateApple() {
     setStats({
       matched: matched.length,
       unmatchedImages: unmatchedImgs.length,
-      unmatchedApples: unmatchedApps.length
+      unmatchedApples: unmatchedApps.length,
+      duplicates: 0
     });
 
     console.log('📊 Matching complete:', {
@@ -253,7 +310,8 @@ export default function CreateApple() {
             finalData.push({
               apple: item.apple,
               image: selectedImage,
-              cultivarName: item.cultivarName
+              cultivarName: item.cultivarName,
+              accessionNumber: item.accessionNumber
             });
           }
         }
@@ -325,12 +383,26 @@ export default function CreateApple() {
           <div className="step">
             <h2>Choose Upload Method</h2>
             <div className="instructions-card">
-              <h3>How to Use</h3>
-              <ul>
-                <li>Choose <b>Single Upload</b> to manually enter apple details and upload images</li>
-                <li>Choose <b>Multiple Upload</b> to upload CSV/Excel with bulk images</li>
-                <li>Use <b>Download Template</b> to create templates for bulk upload</li>
-              </ul>
+              <h3>Upload Options</h3>
+              
+              <div className="instruction-item">
+                <strong>1. Single Upload</strong>
+                <p>Manually enter details for one apple at a time. You can upload images and fill in all information individually. If you need to make specific changes to an existing apple entry later, you can edit it directly from the library.</p>
+              </div>
+              
+              <div className="instruction-item">
+                <strong>2. Multiple Upload (Bulk)</strong>
+                <p>Upload multiple apple entries at once using a CSV or Excel file along with their images. This is faster for adding many apples. Your file must follow the template format.</p>
+              </div>
+              
+              <div className="instruction-item">
+                <strong>3. Template Creator</strong>
+                <p>Download the Excel template that shows the required format for bulk uploads. Your CSV/Excel file must follow this template structure.</p>
+              </div>
+
+              <div className="note-box">
+                <strong>📝 Note:</strong> If you upload an apple that already exists in the database, you'll be asked in the review phase whether to keep the old information, replace it with new data, or make specific edits directly in the library.
+              </div>
             </div>
 
             <div className="upload-options">
@@ -371,15 +443,29 @@ export default function CreateApple() {
         {/* STEP 1: UPLOAD CSV */}
         {step === 1 && (
           <div className="step">
-            <h2><FileSpreadsheet size={28} /> Upload Your CSV</h2>
+            <h2><FileSpreadsheet size={28} /> Upload Your CSV or Excel File</h2>
             <div className="instructions-card">
-              <h3>Upload Instructions</h3>
-              <ul>
-                <li>Only <b>.csv</b> or <b>.xlsx/.xls</b> files are accepted</li>
-                <li>File must contain cultivar names</li>
-                <li>Each row should contain complete apple information</li>
-                <li>File must not be empty</li>
-              </ul>
+              <h3>File Requirements</h3>
+              
+              <div className="instruction-item">
+                <strong>✓ Accepted Formats:</strong>
+                <p>Only CSV (.csv) or Excel (.xlsx, .xls) files are accepted.</p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ File Must Not Be Empty:</strong>
+                <p>Your file must contain apple data. Empty files will be rejected.</p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ No Duplicate Entries:</strong>
+                <p>Each apple entry must be unique. If duplicates are found, you'll need to remove them before uploading.</p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ Required Columns:</strong>
+                <p>Your file must include cultivar name and follow the template format. Download the template from the Template Creator if you haven't already.</p>
+              </div>
             </div>
 
             <input
@@ -389,17 +475,15 @@ export default function CreateApple() {
             />
 
             {csvFile && (
-              <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginTop: '15px' }}>
-                <p style={{ color: '#2e7d32', margin: 0, fontWeight: '600' }}>
-                  ✓ Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(2)} KB)
-                </p>
+              <div className="file-selected-box">
+                <p>✓ Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(2)} KB)</p>
               </div>
             )}
 
             {error && (
-              <p style={{ color: 'red', fontWeight: '500', marginTop: '10px' }}>
-                ⚠️ {error}
-              </p>
+              <div className="error-box">
+                <p>{error}</p>
+              </div>
             )}
 
             <div className="navigation-buttons">
@@ -423,19 +507,43 @@ export default function CreateApple() {
           <div className="step">
             <h2><FileImage size={28} /> Upload Your Images</h2>
             <div className="instructions-card">
-              <h3>Image Upload Instructions</h3>
-              <ul>
-                <li>Upload a <b>.zip</b> file containing all images</li>
-                <li>Images should be named to match cultivar names from CSV</li>
-                <li>Supported formats: <b>JPG, PNG, GIF, BMP</b></li>
-                <li>System will automatically match images to cultivars</li>
-              </ul>
+              <h3>Image Naming Convention</h3>
+              
+              <div className="instruction-item">
+                <strong>✓ File Format:</strong>
+                <p>Upload a ZIP file containing all your apple images.</p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ Image Name Format:</strong>
+                <p><code>AccessionNumber_CultivarName</code></p>
+                <p>Example: <code>12345_Honeycrisp.jpg</code></p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ Cross-Section Images:</strong>
+                <p>If you have cross-section images, add <code>_crosssection</code> to the name:</p>
+                <p>Example: <code>12345_Honeycrisp_crosssection.jpg</code></p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ Multiple Images Per Apple:</strong>
+                <p>If you have multiple images for the same apple, add numbers (1, 2, 3) at the end:</p>
+                <p>Examples: <code>12345_Honeycrisp_1.jpg</code>, <code>12345_Honeycrisp_2.jpg</code></p>
+              </div>
+
+              <div className="instruction-item">
+                <strong>✓ Supported Formats:</strong>
+                <p>JPG, JPEG, PNG, GIF, BMP</p>
+              </div>
+
+              <div className="note-box">
+                <strong>📝 Note:</strong> If there are duplicate image names or naming conflicts, you'll be able to resolve them in the review phase.
+              </div>
             </div>
 
-            <div style={{ background: '#e3f2fd', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
-              <p style={{ margin: 0, color: '#1565c0', fontWeight: '600' }}>
-                ✓ CSV Uploaded: {csvData.length} cultivars loaded
-              </p>
+            <div className="info-box">
+              <p>✓ CSV Uploaded: {csvData.length} cultivars loaded</p>
             </div>
 
             <input
@@ -445,17 +553,15 @@ export default function CreateApple() {
             />
 
             {imagesZip && (
-              <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginTop: '15px' }}>
-                <p style={{ color: '#2e7d32', margin: 0, fontWeight: '600' }}>
-                  ✓ Selected: {imagesZip.name} ({(imagesZip.size / 1024).toFixed(2)} KB)
-                </p>
+              <div className="file-selected-box">
+                <p>✓ Selected: {imagesZip.name} ({(imagesZip.size / 1024).toFixed(2)} KB)</p>
               </div>
             )}
 
             {error && (
-              <p style={{ color: 'red', fontWeight: '500', marginTop: '10px' }}>
-                ⚠️ {error}
-              </p>
+              <div className="error-box">
+                <p>{error}</p>
+              </div>
             )}
 
             <div className="navigation-buttons">
@@ -481,46 +587,37 @@ export default function CreateApple() {
             <h2><CheckCircle size={28} /> Review and Save</h2>
             
             {/* Statistics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-              <div style={{ background: '#e8f5e9', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', fontWeight: '700', color: '#4caf50' }}>{stats.matched}</div>
-                <div style={{ color: '#2e7d32', fontWeight: '600' }}>✓ Matched</div>
+            <div className="stats-grid">
+              <div className="stat-card success">
+                <div className="stat-number">{stats.matched}</div>
+                <div className="stat-label">✓ Matched</div>
               </div>
-              <div style={{ background: '#fff3e0', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', fontWeight: '700', color: '#ff9800' }}>{stats.unmatchedImages}</div>
-                <div style={{ color: '#e65100', fontWeight: '600' }}>⚠ Unmatched Images</div>
+              <div className="stat-card warning">
+                <div className="stat-number">{stats.unmatchedImages}</div>
+                <div className="stat-label">⚠ Unmatched Images</div>
               </div>
-              <div style={{ background: '#ffebee', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', fontWeight: '700', color: '#f44336' }}>{unmatchedApples.length - Object.keys(manualMatches).filter(k => manualMatches[k]).length}</div>
-                <div style={{ color: '#c62828', fontWeight: '600' }}>⚠ Unmatched Apples</div>
+              <div className="stat-card error">
+                <div className="stat-number">{unmatchedApples.length - Object.keys(manualMatches).filter(k => manualMatches[k]).length}</div>
+                <div className="stat-label">⚠ Unmatched Apples</div>
               </div>
             </div>
 
             {/* Manual Matching Section */}
             {unmatchedApples.length > 0 && (
-              <div style={{ background: '#fff3e0', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
-                <h3 style={{ color: '#e65100', marginBottom: '15px' }}>
-                  <AlertCircle size={20} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
+              <div className="manual-matching-section">
+                <h3>
+                  <AlertCircle size={20} />
                   Manual Matching Required
                 </h3>
-                <p style={{ marginBottom: '15px', color: '#555' }}>
-                  The following cultivars need images. Please select from unmatched images:
-                </p>
+                <p>The following cultivars need images. Please select from unmatched images:</p>
                 
                 {unmatchedApples.map((item, index) => (
-                  <div key={index} style={{ background: 'white', padding: '15px', borderRadius: '8px', marginBottom: '10px' }}>
-                    <strong>{item.cultivarName}</strong>
+                  <div key={index} className="match-item">
+                    <strong>{item.accessionNumber ? `${item.accessionNumber} - ` : ''}{item.cultivarName}</strong>
                     <select
                       value={manualMatches[index] || ''}
                       onChange={(e) => handleManualMatch(index, e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        marginTop: '10px',
-                        borderRadius: '6px',
-                        border: '2px solid #e0e0e0',
-                        fontSize: '14px'
-                      }}
+                      className="match-select"
                     >
                       <option value="">-- Select Image --</option>
                       {unmatchedImages.map((img, imgIndex) => (
@@ -534,17 +631,17 @@ export default function CreateApple() {
 
             {/* Matched Preview */}
             {matchedData.length > 0 && (
-              <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ color: '#4caf50', marginBottom: '15px' }}>✓ Successfully Matched ({matchedData.length})</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+              <div className="matched-preview">
+                <h3>✓ Successfully Matched ({matchedData.length})</h3>
+                <div className="preview-grid">
                   {matchedData.slice(0, 6).map((item, index) => (
-                    <div key={index} style={{ background: '#f8f9fa', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                      <img src={item.image.url} alt={item.cultivarName} style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px' }} />
-                      <div style={{ fontSize: '12px', color: '#555', fontWeight: '600' }}>{item.cultivarName}</div>
+                    <div key={index} className="preview-item">
+                      <img src={item.image.url} alt={item.cultivarName} />
+                      <div className="preview-name">{item.accessionNumber ? `${item.accessionNumber} - ` : ''}{item.cultivarName}</div>
                     </div>
                   ))}
                   {matchedData.length > 6 && (
-                    <div style={{ background: '#e0e0e0', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600' }}>
+                    <div className="preview-more">
                       +{matchedData.length - 6} more
                     </div>
                   )}

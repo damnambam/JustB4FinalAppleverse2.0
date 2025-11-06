@@ -34,6 +34,17 @@
   color: #666;
 }
 
+.data-summary {
+  font-size: 16px;
+  color: #666;
+  margin-top: 8px;
+}
+
+.last-refresh {
+  color: #999;
+  font-size: 14px;
+}
+
 .admin-header-actions {
   display: flex;
   gap: 15px;
@@ -70,6 +81,34 @@
 .apple-btn {
   background: linear-gradient(135deg, #4caf50, #66bb6a);
   color: white;
+}
+
+/* Error Banner */
+.error-banner {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  padding: 15px 25px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.error-banner button {
+  background: white;
+  color: #ef4444;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.error-banner button:hover {
+  transform: scale(1.05);
 }
 
 /* Tabs */
@@ -187,12 +226,68 @@
   border-bottom: 3px solid #e76f51;
 }
 
+/* Loading State */
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 20px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #e76f51;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-inline {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.loading-inline .spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 15px;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
   color: #999;
   font-size: 18px;
+}
+
+.empty-state button {
+  margin-top: 15px;
+  padding: 10px 20px;
+  background: #e76f51;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.empty-state button:hover {
+  background: #d4a373;
+  transform: translateY(-2px);
+}
+
+.empty-state-inline {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 16px;
 }
 
 /* Request Cards */
@@ -214,7 +309,7 @@
 }
 
 .request-card:hover {
-  border-color: #e76f51;
+  border-color: #000000;
   box-shadow: 0 5px 15px rgba(231, 111, 81, 0.15);
   transform: translateY(-2px);
 }
@@ -247,6 +342,12 @@
 .request-email {
   color: #666;
   margin-bottom: 10px;
+}
+
+.request-dob {
+  color: #555;
+  font-size: 14px;
+  margin-bottom: 5px;
 }
 
 .request-reason {
@@ -283,6 +384,12 @@
   box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
 }
 
+.approve-btn:disabled,
+.reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .reject-btn {
   background: #f44336;
   color: white;
@@ -310,7 +417,7 @@
 }
 
 .admin-card:hover {
-  border-color: #e76f51;
+  border-color: #000000;
   box-shadow: 0 8px 25px rgba(231, 111, 81, 0.15);
   transform: translateY(-5px);
 }
@@ -428,14 +535,21 @@ input:checked + .toggle-slider:before {
   font-size: 14px;
 }
 
+/* Admin Card Actions - NEW: Container for View Activity and Delete buttons */
+.admin-card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
 .view-activity-btn {
-  width: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 12px;
-  background: linear-gradient(135deg, #e76f51, #d4a373);
+  background: linear-gradient(135deg,#ef4444, #dc2626);
   color: white;
   border: none;
   border-radius: 8px;
@@ -446,7 +560,29 @@ input:checked + .toggle-slider:before {
 
 .view-activity-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(231, 111, 81, 0.4);
+  box-shadow: 0 5px 15px rgba(5, 130, 246, 0.4);
+}
+
+/* NEW: Delete Admin Button */
+.delete-admin-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.delete-admin-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
 }
 
 /* Apples Table */
@@ -716,6 +852,17 @@ input:checked + .toggle-slider:before {
 
   .admins-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* NEW: Mobile responsive for admin card actions */
+  .admin-card-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .view-activity-btn,
+  .delete-admin-btn {
+    width: 100%;
   }
 
   .apples-table {

@@ -9,10 +9,13 @@ import TemplateCreator from './components/TemplateCreator';
 import TreeScrollPage from './components/TreeScrollPage';
 import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
+import Settings from './pages/Settings';
 import Footer from './components/Footer';
 import CreateApple from './pages/CreateApple';
 import SingleApple from './pages/SingleApple';
 import SignupLogin from "./pages/SignupLogin";
+import "@fortawesome/fontawesome-free/css/all.min.css";
+
 
 import './App.css';
 
@@ -24,11 +27,17 @@ const ProtectedAdminRoute = ({ children }) => {
   return children;
 };
 
-// 🔒 Protected Route for Users
+// 🔒 Protected Route for Users (both admin and regular users)
 const ProtectedUserRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  const user = localStorage.getItem('user');
-  if (!token || !user) return <Navigate to="/signup-login" replace />;
+  const adminToken = localStorage.getItem('adminToken');
+  const userToken = localStorage.getItem('token');
+  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+  
+  // Allow access if user has either admin token or regular user token
+  if (!adminToken && !userToken) {
+    return <Navigate to="/signup-login" replace />;
+  }
+  
   return children;
 };
 
@@ -111,6 +120,16 @@ function App() {
       <Routes>
         {/* 🔐 Auth Pages */}
         <Route path="/signup-login" element={<SignupLogin setIsAdmin={setIsAdmin} />} />
+
+        {/* ⚙️ Settings Page (Protected for all logged-in users) */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedUserRoute>
+              <Settings />
+            </ProtectedUserRoute>
+          }
+        />
 
         {/* 🔐 User Dashboard */}
         <Route

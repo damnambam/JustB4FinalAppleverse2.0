@@ -8,16 +8,53 @@
 # testing
 /coverage
 
-# production
-/build
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# ===================================================================
+# Node.js
+# ===================================================================
 
+# Ignore node_modules in all subdirectories
+# Ignore backend dependencies
+backend/node_modules/
+
+# Ignore frontend dependencies
+frontend/node_modules/
+
+# Ignore log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ===================================================================
+# Operating System
+# ===================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ===================================================================
+# Environment & Build Files
+# =================================_==
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.*.local
+
+# Production build output folders
+build/
+dist/
+.out/
+
+# ===================================================================
+# Optional: IDE & Editor Folders
+# ===================================================================
+.vscode/
+.idea/

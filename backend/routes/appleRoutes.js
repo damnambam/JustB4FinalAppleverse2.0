@@ -5,12 +5,69 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { Apple } from '../models/Apple.js';
+import { Admin } from '../models/Admin.js';
 
 const router = express.Router();
 
 // Fix __dirname for ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ========================
+// MIDDLEWARE - Verify Admin Token
+// ========================
+const verifyAdminToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(' ')[1];
+  
+  console.log('🔐 Auth Header:', authHeader);
+  console.log('🔐 Token received:', token);
+  
+  if (!token) {
+    console.log('❌ No token provided');
+    return res.status(401).json({ error: 'No token provided' });
+  }
+
+  // Accept any token that exists (for development)
+  if (token && token.length > 0) {
+    console.log('✅ Token accepted');
+    // Extract admin ID from token (format: admin-{id}-{timestamp})
+    const adminId = token.split('-')[1];
+    req.adminId = adminId;
+    next();
+  } else {
+    console.log('❌ Invalid token');
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+// ========================
+// HELPER - Log Activity
+// ========================
+const logActivity = async (adminId, action, details) => {
+  try {
+    if (!adminId) {
+      console.log('⚠️ No adminId provided for activity log');
+      return;
+    }
+
+    await Admin.findByIdAndUpdate(
+      adminId,
+      {
+        $push: {
+          activityLog: {
+            action,
+            details,
+            timestamp: new Date()
+          }
+        }
+      }
+    );
+    console.log('📝 Activity logged:', action);
+  } catch (error) {
+    console.error('❌ Error logging activity:', error);
+  }
+};
 
 // ========================
 // MULTER SETUP FOR IMAGE UPLOADS
@@ -60,7 +117,7 @@ const upload = multer({
 // ========================
 // SINGLE APPLE UPLOAD
 // ========================
-router.post('/single-upload', upload.array('images', 10), async (req, res) => {
+router.post('/single-upload', verifyAdminToken, upload.array('images', 10), async (req, res) => {
   try {
     console.log('📥 Single apple upload request received');
     console.log('📦 Body:', req.body);
@@ -110,6 +167,13 @@ router.post('/single-upload', upload.array('images', 10), async (req, res) => {
     // Save to database
     await newApple.save();
 
+    // Log activity
+    await logActivity(
+      req.adminId,
+      'Created apple variety',
+      `Created ${appleData.cultivar_name} with ${imagePaths.length} image(s)`
+    );
+
     console.log('✅ Apple saved successfully:', newApple.cultivar_name);
     
     res.status(201).json({ 
@@ -131,7 +195,7 @@ router.post('/single-upload', upload.array('images', 10), async (req, res) => {
 // ========================
 // BULK UPLOAD WITH IMAGES
 // ========================
-router.post('/bulk-upload-with-images', upload.array('images', 500), async (req, res) => {
+router.post('/bulk-upload-with-images', verifyAdminToken, upload.array('images', 500), async (req, res) => {
   try {
     console.log('📥 Bulk upload request received');
     console.log('📸 Total files received:', req.files?.length || 0);
@@ -238,6 +302,13 @@ router.post('/bulk-upload-with-images', upload.array('images', 500), async (req,
       }
     }
 
+    // Log bulk upload activity
+    await logActivity(
+      req.adminId,
+      'Bulk uploaded apple varieties',
+      `Uploaded ${savedApples.length} apple(s) successfully${errors.length > 0 ? `, ${errors.length} failed` : ''}`
+    );
+
     console.log('📊 Upload complete:');
     console.log('   ✅ Successful:', savedApples.length);
     console.log('   ❌ Failed:', errors.length);
@@ -317,10 +388,19 @@ router.get('/:id', async (req, res) => {
 // ========================
 // UPDATE APPLE
 // ========================
-router.put('/:id', upload.array('images', 10), async (req, res) => {
+router.put('/:id', verifyAdminToken, upload.array('images', 10), async (req, res) => {
   try {
     const appleData = req.body.appleData ? JSON.parse(req.body.appleData) : req.body;
     
+    // Get the apple name before updating
+    const existingApple = await Apple.findById(req.params.id);
+    if (!existingApple) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Apple not found' 
+      });
+    }
+
     // Get new image paths if uploaded
     const newImagePaths = req.files ? req.files.map(file => `/images/${file.filename}`) : [];
     
@@ -341,12 +421,12 @@ router.put('/:id', upload.array('images', 10), async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    if (!updatedApple) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Apple not found' 
-      });
-    }
+    // Log activity
+    await logActivity(
+      req.adminId,
+      'Updated apple variety',
+      `Updated ${updatedApple.cultivar_name}${newImagePaths.length > 0 ? ` (added ${newImagePaths.length} new image(s))` : ''}`
+    );
 
     console.log('✅ Apple updated:', updatedApple.cultivar_name);
 
@@ -367,7 +447,7 @@ router.put('/:id', upload.array('images', 10), async (req, res) => {
 // ========================
 // DELETE APPLE
 // ========================
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyAdminToken, async (req, res) => {
   try {
     const deletedApple = await Apple.findByIdAndDelete(req.params.id);
 
@@ -377,6 +457,13 @@ router.delete('/:id', async (req, res) => {
         message: 'Apple not found' 
       });
     }
+
+    // Log activity
+    await logActivity(
+      req.adminId,
+      'Deleted apple variety',
+      `Deleted ${deletedApple.cultivar_name}`
+    );
 
     console.log('✅ Apple deleted:', deletedApple.cultivar_name);
 

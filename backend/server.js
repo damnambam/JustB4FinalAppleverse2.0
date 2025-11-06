@@ -202,3 +202,9 @@ process.on('unhandledRejection', (err) => {
   // Close server & exit process
   process.exit(1);
 });
+
+// ========================
+// SETTINGS ROUTES
+// ========================
+const settingsRoutes = require('./routes/settingsRoutes');
+app.use('/api/auth/settings', settingsRoutes);

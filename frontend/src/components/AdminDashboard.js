@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, Clock, Activity, Check, XCircle, Eye, Plus, FileText } from 'lucide-react';
+import { Search, X, Clock, Activity, Check, XCircle, Eye, Plus, FileText, Trash2 } from 'lucide-react';
 import AppleDisp from './AppleDisp';
 import './AdminDashboard.css';
 import {
@@ -9,7 +9,8 @@ import {
   approveAdminRequest,
   rejectAdminRequest,
   toggleAdminStatus,
-  getAdminActivityLog
+  getAdminActivityLog,
+  deleteAdmin
 } from '../services/adminService';
 
 const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
@@ -28,10 +29,12 @@ const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
   const [error, setError] = useState('');
   const [activityLog, setActivityLog] = useState([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [currentAdminName, setCurrentAdminName] = useState('');
 
   // Fetch data on component mount
   useEffect(() => {
     console.log('📊 AdminDashboard mounted, fetching data...');
+    fetchCurrentAdminInfo();
     fetchAllData();
   }, []);
 
@@ -49,6 +52,24 @@ const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
       clearInterval(intervalId);
     };
   }, []);
+
+  // Fetch current admin info
+  const fetchCurrentAdminInfo = () => {
+    try {
+      // Get admin info from localStorage
+      const adminData = localStorage.getItem('adminData');
+      if (adminData) {
+        const parsed = JSON.parse(adminData);
+        setCurrentAdminName(parsed.name || 'Admin');
+        console.log('✅ Current admin name:', parsed.name);
+      } else {
+        setCurrentAdminName('Admin');
+      }
+    } catch (err) {
+      console.error('❌ Error fetching current admin info:', err);
+      setCurrentAdminName('Admin');
+    }
+  };
 
   // Fetch all data
   const fetchAllData = async (silent = false) => {
@@ -162,6 +183,30 @@ const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
       const errorMsg = err.message || 'Failed to reject request';
       alert('❌ Error: ' + errorMsg);
       console.error('❌ Reject error:', err);
+    }
+  };
+
+  // Handle delete admin
+  const handleDeleteAdmin = async (adminId, adminName) => {
+    if (!window.confirm(`Are you sure you want to permanently delete admin "${adminName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      console.log('⏳ Deleting admin:', adminId);
+      await deleteAdmin(adminId);
+      
+      // Update local state immediately for better UX
+      setCurrentAdmins(prev => prev.filter(admin => admin._id !== adminId));
+      
+      alert(`Admin "${adminName}" deleted successfully! ✅`);
+      
+      // Refresh to ensure sync with backend
+      setTimeout(() => fetchAllData(true), 500);
+    } catch (err) {
+      const errorMsg = err.message || 'Failed to delete admin';
+      alert('❌ Error: ' + errorMsg);
+      console.error('❌ Delete admin error:', err);
     }
   };
 
@@ -287,8 +332,8 @@ const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
     <div className="admin-dashboard">
       <div className="admin-header">
         <div>
-          <h1>🔐 Admin Dashboard</h1>
-          <p className="admin-subtitle">Manage administrators and system access</p>
+          <h1>Hello, {currentAdminName}!</h1>
+          
           {(pendingAdmins.length > 0 || currentAdmins.length > 0) && (
             <p className="data-summary">
               {pendingAdmins.length} pending • {currentAdmins.length} current admins
@@ -346,7 +391,7 @@ const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
         <Search size={20} />
         <input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search admin by name or email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -459,13 +504,22 @@ const AdminDashboard = ({ isAdmin, onNavigateToTemplates }) => {
                       <p><strong>Last Login:</strong> {formatDateTime(admin.lastLogin) || 'Never'}</p>
                     </div>
 
-                    <button 
-                      className="view-activity-btn"
-                      onClick={() => viewActivityLog(admin)}
-                    >
-                      <Eye size={18} />
-                      View Activity Log
-                    </button>
+                    <div className="admin-card-actions">
+                      <button 
+                        className="view-activity-btn"
+                        onClick={() => viewActivityLog(admin)}
+                      >
+                        <Eye size={18} />
+                        View Activity Log
+                      </button>
+                      <button 
+                        className="delete-admin-btn"
+                        onClick={() => handleDeleteAdmin(admin._id, admin.name)}
+                      >
+                        <Trash2 size={18} />
+                        Delete Admin
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
